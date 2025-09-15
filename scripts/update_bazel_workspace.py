@@ -8,6 +8,7 @@
 import hashlib
 import json
 import os
+import re
 import requests
 import sys
 
@@ -16,6 +17,7 @@ STORAGE_URL = 'https://storage.googleapis.com/webassembly/emscripten-releases-bu
 EMSDK_ROOT = os.path.dirname(os.path.dirname(__file__))
 RELEASES_TAGS_FILE = EMSDK_ROOT + '/emscripten-releases-tags.json'
 BAZEL_REVISIONS_FILE = EMSDK_ROOT + '/bazel/revisions.bzl'
+BAZEL_MODULE_FILE = EMSDK_ROOT + '/bazel/MODULE.bazel'
 
 
 def get_latest_info():
@@ -40,6 +42,7 @@ def revisions_item(version, latest_hash):
     "{version}": struct(
         hash = "{latest_hash}",
         sha_linux = "{get_sha('linux', 'tar.xz', latest_hash)}",
+        sha_linux_arm64 = "{get_sha('linux', 'tar.xz', latest_hash, '-arm64')}",
         sha_mac = "{get_sha('mac', 'tar.xz', latest_hash)}",
         sha_mac_arm64 = "{get_sha('mac', 'tar.xz', latest_hash, '-arm64')}",
         sha_win = "{get_sha('win', 'zip', latest_hash)}",
@@ -57,8 +60,23 @@ def insert_revision(item):
         f.write(''.join(lines))
 
 
+def update_module_version(version):
+    with open(BAZEL_MODULE_FILE, 'r') as f:
+        content = f.read()
+
+    pattern = r'(module\(\s*name = "emsdk",\s*version = )"\d+.\d+.\d+",\n\)'
+    # Verify that the pattern exists in the input since re.sub will
+    # will succeed either way.
+    assert re.search(pattern, content)
+    content = re.sub(pattern, fr'\1"{version}",\n)', content)
+
+    with open(BAZEL_MODULE_FILE, 'w') as f:
+        f.write(content)
+
+
 def main(argv):
     version, latest_hash = get_latest_info()
+    update_module_version(version)
     item = revisions_item(version, latest_hash)
     print('inserting item:')
     print(item)

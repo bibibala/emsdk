@@ -72,6 +72,8 @@ def _impl(ctx):
 
     emscripten_dir = ctx.attr.emscripten_binaries.label.workspace_root
 
+    nodejs_path = ctx.file.nodejs_bin.path
+
     builtin_sysroot = emscripten_dir + "/emscripten/cache/sysroot"
 
     emcc_script = "emcc.%s" % ctx.attr.script_extension
@@ -361,6 +363,9 @@ def _impl(ctx):
         # Set if enabling exceptions.
         feature(name = "exceptions"),
 
+        # Set if enabling wasm_exceptions.
+        feature(name = "wasm_exceptions"),
+
         # This feature overrides the default optimization to prefer execution speed
         # over binary size (like clang -O3).
         feature(
@@ -513,7 +518,7 @@ def _impl(ctx):
             flags = [
                 "-fno-exceptions",
             ],
-            not_features = ["exceptions"],
+            not_features = ["exceptions", "wasm_exceptions"],
         ),
         flag_set(
             actions = all_cpp_compile_actions,
@@ -521,6 +526,14 @@ def _impl(ctx):
                 "-fexceptions",
             ],
             features = ["exceptions"],
+        ),
+        flag_set(
+            actions = all_cpp_compile_actions +
+                      all_link_actions,
+            flags = [
+                "-fwasm-exceptions",
+            ],
+            features = ["wasm_exceptions"],
         ),
         # All compiles (and implicitly link)
         flag_set(
@@ -934,7 +947,7 @@ def _impl(ctx):
                 "-iwithsysroot" + "/include/compat",
                 "-iwithsysroot" + "/include",
                 "-isystem",
-                emscripten_dir + "/lib/clang/20/include",
+                emscripten_dir + "/lib/clang/22/include",
             ],
         ),
         # Inputs and outputs
@@ -1060,6 +1073,10 @@ def _impl(ctx):
                     key = "EM_CONFIG_PATH",
                     value = ctx.file.em_config.path,
                 ),
+                env_entry(
+                    key = "NODE_JS_PATH",
+                    value = nodejs_path,
+                ),
             ],
         ),
         # Use llvm backend.  Off by default, enabled via --features=llvm_backend
@@ -1101,7 +1118,7 @@ def _impl(ctx):
         emscripten_dir + "/emscripten/cache/sysroot/include/c++/v1",
         emscripten_dir + "/emscripten/cache/sysroot/include/compat",
         emscripten_dir + "/emscripten/cache/sysroot/include",
-        emscripten_dir + "/lib/clang/20/include",
+        emscripten_dir + "/lib/clang/21/include",
     ]
 
     artifact_name_patterns = []
@@ -1134,6 +1151,7 @@ emscripten_cc_toolchain_config_rule = rule(
         "cpu": attr.string(mandatory = True, values = ["asmjs", "wasm"]),
         "em_config": attr.label(mandatory = True, allow_single_file = True),
         "emscripten_binaries": attr.label(mandatory = True, cfg = "exec"),
+        "nodejs_bin": attr.label(mandatory = True, allow_single_file = True),
         "script_extension": attr.string(mandatory = True, values = ["sh", "bat"]),
     },
     provides = [CcToolchainConfigInfo],
